@@ -1,0 +1,36 @@
+---
+- name: Remove old files, keep latest 14
+  hosts: localhost
+  become: no
+  vars:
+    target_folder: "/path/to/folder"
+
+  tasks:
+    - name: Ensure the target folder exists
+      ansible.builtin.file:
+        path: "{{ target_folder }}"
+        state: directory
+
+    - name: Get list of files in the folder
+      ansible.builtin.find:
+        paths: "{{ target_folder }}"
+        file_type: file
+        recurse: no
+        age: 0  # This ensures we get all files regardless of age
+      register: found_files
+
+    - name: Sort files by creation time
+      ansible.builtin.set_fact:
+        sorted_files: "{{ found_files.files | sort(attribute='ctime') }}"
+
+    - name: Determine files to keep
+      ansible.builtin.set_fact:
+        files_to_keep: "{{ sorted_files[-14:] }}"  # Keep the latest 14 files
+
+    - name: Delete files not in the keep list
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ sorted_files }}"
+      when: item not in files_to_keep
+      register: delete_results
